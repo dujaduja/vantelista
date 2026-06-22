@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Väntelista" />
+  <meta name="theme-color" content="#1f2933" />
+  <title>Digital Väntelista</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Väntelista</h1>
+    <div class="counters" id="counters">
+      <div class="counter"><span class="counter-num" id="countParties">0</span><span class="counter-label">sällskap</span></div>
+      <div class="counter"><span class="counter-num" id="countPax">0</span><span class="counter-label">personer</span></div>
+    </div>
+    <div class="topbar-actions">
+      <button id="btnSave" class="btn">💾 Spara</button>
+      <button id="btnHistory" class="btn">📜 Historik</button>
+      <button id="btnSummary" class="btn btn-primary">📊 Summera dagen</button>
+    </div>
+  </header>
+
+  <main>
+    <form id="addForm" class="add-form" autocomplete="off">
+      <div class="field">
+        <label>Telefon</label>
+        <input type="tel" id="f-phone" inputmode="tel" placeholder="07…" />
+        <span class="field-warn" id="phoneWarn" hidden></span>
+      </div>
+      <div class="field">
+        <label>Namn</label>
+        <input type="text" id="f-name" placeholder="Namn" />
+      </div>
+      <div class="field field-narrow">
+        <label>PAX</label>
+        <input type="number" id="f-pax" inputmode="numeric" min="1" placeholder="–" />
+      </div>
+      <div class="field field-grow">
+        <label>Kommentar</label>
+        <input type="text" id="f-comment" placeholder="Kommentar" />
+      </div>
+      <div class="field field-narrow">
+        <label>Est. (min)</label>
+        <input type="number" id="f-est" inputmode="numeric" min="0" placeholder="–" />
+      </div>
+      <div class="field field-checks">
+        <label class="chk"><input type="checkbox" id="f-shadow" /> Skugga</label>
+        <label class="chk"><input type="checkbox" id="f-bridge" /> Brygga</label>
+      </div>
+      <div class="field field-arrival">
+        <label>Ankomst</label>
+        <span id="f-arrival" class="arrival-preview">–</span>
+      </div>
+      <button type="submit" class="btn btn-add">+ Lägg till</button>
+    </form>
+
+    <div class="queue-wrap">
+      <table class="queue" id="queueTable">
+        <thead>
+          <tr>
+            <th class="col-status"></th>
+            <th>Telefon</th>
+            <th>Namn</th>
+            <th class="col-pax">PAX</th>
+            <th>Kommentar</th>
+            <th class="col-table">Bord</th>
+            <th class="col-checks">Skugga / Brygga</th>
+            <th class="col-time">Ankomst</th>
+            <th class="col-time">Est.</th>
+            <th class="col-time">Väntat</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="queueBody"></tbody>
+      </table>
+      <p id="emptyState" class="empty-state">Inga sällskap i kö. Lägg till ovan.</p>
+    </div>
+  </main>
+
+  <!-- Historik -->
+  <div class="modal" id="historyModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Historik</h2>
+        <button class="btn btn-close" data-close>✕</button>
+      </div>
+      <div class="modal-body" id="historyBody"></div>
+    </div>
+  </div>
+
+  <!-- Summering -->
+  <div class="modal" id="summaryModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>Summering – dagen</h2>
+        <button class="btn btn-close" data-close>✕</button>
+      </div>
+      <div class="modal-body" id="summaryBody"></div>
+      <div class="modal-foot">
+        <button id="btnExportJson" class="btn">⬇︎ Exportera JSON</button>
+        <button id="btnExportCsv" class="btn">⬇︎ Exportera CSV</button>
+        <button id="btnClearDay" class="btn btn-danger">🗑 Rensa dagen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

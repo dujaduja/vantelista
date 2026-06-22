@@ -1,0 +1,680 @@
+/* Digital Väntelista – huvudlogik.
+   Ren frontend, all data i IndexedDB (via DB i db.js). */
+(function () {
+  'use strict';
+
+  /** @type {Array} alla sällskap (alla statusar, alla dagar) */
+  let parties = [];
+
+  // ---- Hjälpare -----------------------------------------------------------
+
+  const $ = (sel) => document.querySelector(sel);
+
+  function uid() {
+    return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function dayKey(ts) {
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  const todayKey = () => dayKey(Date.now());
+
+  function fmtTime(ts) {
+    if (!ts) return '–';
+    const d = new Date(ts);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function fmtDuration(ms) {
+    if (ms == null || ms < 0) return '–';
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m} min`;
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+  }
+
+  // ---- Persistens ---------------------------------------------------------
+  // Två lager för trygghet:
+  //  1) IndexedDB – primärt lager (överlever omladdning, omstart, offline).
+  //  2) localStorage – synkron spegel som skrivs vid *varje* ändring. Eftersom
+  //     den skrivs direkt (inte asynkront som IndexedDB) är den ett skyddsnät
+  //     om appen kraschar mitt i en skrivning. Vid start slås lagren ihop och
+  //     nyaste posten per id vinner.
+
+  const LS_KEY = 'vantelista-snapshot';
+
+  function writeLocalSnapshot() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ savedAt: Date.now(), parties }));
+    } catch (e) { /* localStorage full/avstängt – IndexedDB är ändå primärt */ }
+  }
+
+  function readLocalSnapshot() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function markSaveError() {
+    // Data finns kvar i localStorage-spegeln; varna så man kan exportera.
+    toast('⚠️ Kunde inte spara till databasen – exportera som backup');
+  }
+
+  // Skriv en ändrad post till IndexedDB. Debounce *per post* (inte globalt),
+  // så att snabba ändringar på olika rader aldrig skriver över varandra.
+  const idbTimers = new Map();
+  function persistParty(p) {
+    p.updatedAt = Date.now();
+    writeLocalSnapshot(); // synkront skyddsnät direkt
+    clearTimeout(idbTimers.get(p.id));
+    idbTimers.set(p.id, setTimeout(() => {
+      idbTimers.delete(p.id);
+      DB.put(p).catch((e) => { console.error(e); markSaveError(); });
+    }, 200));
+  }
+
+  // Skriv direkt (för viktiga händelser: lägga till, klart, gick utan bord).
+  function persistNow(p) {
+    p.updatedAt = Date.now();
+    writeLocalSnapshot();
+    DB.put(p).catch((e) => { console.error(e); markSaveError(); });
+  }
+
+  // Spola allt vid bakgrund/nedstängning. localStorage hinner alltid (synkront).
+  function flushAll() {
+    writeLocalSnapshot();
+    DB.putAll(parties).catch((e) => console.error(e));
+  }
+
+  // Slå ihop två källor på id, behåll den med nyast updatedAt.
+  function mergeSources(a, b) {
+    const map = new Map();
+    [].concat(a || [], b || []).forEach((p) => {
+      if (!p || !p.id) return;
+      const cur = map.get(p.id);
+      if (!cur || (p.updatedAt || 0) >= (cur.updatedAt || 0)) map.set(p.id, p);
+    });
+    return Array.from(map.values());
+  }
+
+  async function saveAll() {
+    writeLocalSnapshot();
+    try {
+      await DB.putAll(parties);
+      toast('Sparat lokalt ✓');
+    } catch (e) {
+      console.error(e);
+      toast('Sparat som säkerhetskopia ⚠️');
+    }
+  }
+
+  // ---- Vyer / filter ------------------------------------------------------
+
+  const waiting = () => parties.filter((p) => p.status === 'waiting');
+
+  // ---- Rendering av kö ----------------------------------------------------
+
+  function renderCounters() {
+    const w = waiting();
+    $('#countParties').textContent = w.length;
+    $('#countPax').textContent = w.reduce((sum, p) => sum + (Number(p.pax) || 0), 0);
+  }
+
+  function rowHtml(p) {
+    return `
+      <tr data-id="${p.id}" class="row" data-status="${p.status}">
+        <td class="col-status"><span class="dot"></span></td>
+        <td><span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span></td>
+        <td><input class="cell" data-f="name" value="${escapeAttr(p.name)}" placeholder="Namn" /></td>
+        <td class="col-pax"><input class="cell num" data-f="pax" type="number" min="1" inputmode="numeric" value="${p.pax ?? ''}" placeholder="–" /></td>
+        <td><input class="cell" data-f="comment" value="${escapeAttr(p.comment)}" placeholder="–" /></td>
+        <td class="col-table"><input class="cell num" data-f="table" value="${escapeAttr(p.table)}" placeholder="–" /></td>
+        <td class="col-checks">
+          <label class="chk"><input type="checkbox" data-f="shadow" ${p.shadow ? 'checked' : ''}/> S</label>
+          <label class="chk"><input type="checkbox" data-f="bridge" ${p.bridge ? 'checked' : ''}/> B</label>
+        </td>
+        <td class="col-time arrival">${fmtTime(p.arrival)}</td>
+        <td class="col-time"><input class="cell num est" data-f="est" type="number" min="0" inputmode="numeric" value="${p.est ?? ''}" placeholder="–" /></td>
+        <td class="col-time elapsed" data-elapsed>–</td>
+        <td class="col-actions">
+          <button class="btn btn-done" data-act="done" title="Klart">✓</button>
+          <button class="btn btn-left" data-act="left" title="Gick utan bord">✕</button>
+        </td>
+      </tr>`;
+  }
+
+  function renderQueue() {
+    const body = $('#queueBody');
+    const list = waiting();
+    const empty = $('#emptyState');
+
+    if (list.length === 0) {
+      body.innerHTML = '';
+      empty.hidden = false;
+    } else {
+      empty.hidden = true;
+      body.innerHTML = list.map(rowHtml).join('');
+    }
+    applyRowStates();
+    updateElapsed();
+    renderCounters();
+  }
+
+  /** Sätt gul/utgråad markering per rad utan att rendera om. */
+  function applyRowStates() {
+    document.querySelectorAll('#queueBody tr').forEach((tr) => {
+      const p = byId(tr.dataset.id);
+      if (!p) return;
+      tr.classList.toggle('assigned', p.status === 'waiting' && !!String(p.table || '').trim());
+      tr.classList.toggle('is-done', p.status === 'done');
+    });
+  }
+
+  /** Uppdatera "väntat"-cellerna varje sekund och färga rött vid övertid. */
+  function updateElapsed() {
+    const now = Date.now();
+    document.querySelectorAll('#queueBody tr').forEach((tr) => {
+      const p = byId(tr.dataset.id);
+      if (!p) return;
+      const cell = tr.querySelector('[data-elapsed]');
+      const end = p.status === 'waiting' ? now : (p.statusTime || now);
+      const elapsedMs = end - p.arrival;
+      cell.textContent = fmtDuration(elapsedMs);
+      const over = p.est != null && p.est !== '' && elapsedMs > Number(p.est) * 60000;
+      cell.classList.toggle('overdue', !!over && p.status === 'waiting');
+      tr.classList.toggle('overdue-row', !!over && p.status === 'waiting');
+    });
+  }
+
+  // ---- Datamanipulation ---------------------------------------------------
+
+  const byId = (id) => parties.find((p) => p.id === id);
+
+  function addParty(data) {
+    const p = {
+      id: uid(),
+      phone: data.phone || '',
+      name: data.name || '',
+      pax: data.pax === '' || data.pax == null ? null : Number(data.pax),
+      comment: data.comment || '',
+      table: data.table || '',
+      shadow: !!data.shadow,
+      bridge: !!data.bridge,
+      est: data.est === '' || data.est == null ? null : Number(data.est),
+      arrival: data.arrival || Date.now(),
+      status: 'waiting',
+      statusTime: null,
+      day: todayKey(),
+      updatedAt: Date.now(),
+    };
+    parties.push(p);
+    persistNow(p);
+    renderQueue();
+    return p;
+  }
+
+  function setStatus(id, status) {
+    const p = byId(id);
+    if (!p) return;
+    p.status = status;
+    p.statusTime = Date.now();
+    persistNow(p);
+    renderQueue();
+  }
+
+  function updateField(id, field, value) {
+    const p = byId(id);
+    if (!p) return;
+    if (field === 'pax' || field === 'est') {
+      p[field] = value === '' ? null : Number(value);
+    } else if (field === 'shadow' || field === 'bridge') {
+      p[field] = !!value;
+    } else {
+      p[field] = value;
+    }
+    persistParty(p);
+  }
+
+  // ---- Clipboard / Handoff ------------------------------------------------
+
+  async function copyPhone(phone) {
+    if (!phone) return;
+    try {
+      await navigator.clipboard.writeText(phone);
+      toast(`Kopierat: ${phone}`);
+    } catch (e) {
+      // Fallback för äldre webkit
+      const ta = document.createElement('textarea');
+      ta.value = phone;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast(`Kopierat: ${phone}`); }
+      catch (_) { toast('Kunde inte kopiera'); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ---- Add-form ------------------------------------------------------------
+
+  let pendingArrival = null; // sätts när man börjar skriva telefon
+
+  // Returnerar ett varningsmeddelande om numret varken är 10 siffror
+  // (vanligt svenskt mobilnummer) eller börjar med landskod, annars null.
+  function phoneIssue(value) {
+    const v = String(value || '').trim();
+    if (v === '') return null;
+    if (v.startsWith('+') || v.startsWith('00')) return null;
+    const digits = v.replace(/\D/g, '');
+    if (digits.length === 10) return null;
+    return `Ovanligt nummer: ${digits.length} siffror. Förväntar 10 siffror eller landskod (t.ex. +46).`;
+  }
+
+  function updatePhoneWarning() {
+    const phone = $('#f-phone');
+    const warn = $('#phoneWarn');
+    const issue = phoneIssue(phone.value);
+    warn.textContent = issue || '';
+    warn.hidden = !issue;
+    phone.classList.toggle('warn', !!issue);
+  }
+
+  function resetForm() {
+    ['f-phone', 'f-name', 'f-pax', 'f-comment', 'f-est'].forEach((id) => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('f-shadow').checked = false;
+    document.getElementById('f-bridge').checked = false;
+    pendingArrival = null;
+    $('#f-arrival').textContent = '–';
+    updatePhoneWarning();
+  }
+
+  function initForm() {
+    const phone = $('#f-phone');
+    // Ankomsttid fylls i automatiskt så fort man börjar skriva telefonnummer
+    phone.addEventListener('input', () => {
+      if (pendingArrival == null && phone.value.trim() !== '') {
+        pendingArrival = Date.now();
+        $('#f-arrival').textContent = fmtTime(pendingArrival);
+      }
+      if (phone.value.trim() === '') {
+        pendingArrival = null;
+        $('#f-arrival').textContent = '–';
+      }
+      updatePhoneWarning();
+    });
+
+    $('#addForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = {
+        phone: $('#f-phone').value.trim(),
+        name: $('#f-name').value.trim(),
+        pax: $('#f-pax').value.trim(),
+        comment: $('#f-comment').value.trim(),
+        est: $('#f-est').value.trim(),
+        shadow: $('#f-shadow').checked,
+        bridge: $('#f-bridge').checked,
+        arrival: pendingArrival || Date.now(),
+      };
+      const hasAny = data.phone || data.name || data.pax || data.comment ||
+        data.est || data.shadow || data.bridge;
+      if (!hasAny) { toast('Fyll i minst ett fält'); return; }
+      addParty(data);
+      resetForm();
+      $('#f-phone').focus();
+    });
+  }
+
+  // ---- Kö-interaktioner (event-delegation) --------------------------------
+
+  function initQueueEvents() {
+    const body = $('#queueBody');
+
+    body.addEventListener('click', (e) => {
+      const actEl = e.target.closest('[data-act]');
+      if (!actEl) return;
+      const tr = e.target.closest('tr');
+      const id = tr && tr.dataset.id;
+      const act = actEl.dataset.act;
+      if (act === 'copy') {
+        const p = byId(id);
+        if (p) copyPhone(p.phone);
+      } else if (act === 'done') {
+        setStatus(id, 'done');
+      } else if (act === 'left') {
+        const p = byId(id);
+        const who = p && (p.name || p.phone) ? ` – ${p.name || p.phone}` : '';
+        if (confirm(`Markera som "Gick utan bord"?${who}`)) setStatus(id, 'left');
+      }
+    });
+
+    body.addEventListener('input', (e) => {
+      const el = e.target.closest('[data-f]');
+      if (!el) return;
+      const tr = e.target.closest('tr');
+      const id = tr && tr.dataset.id;
+      const field = el.dataset.f;
+      const value = el.type === 'checkbox' ? el.checked : el.value;
+      updateField(id, field, value);
+      if (field === 'table') { applyRowStates(); }
+      if (field === 'pax') { renderCounters(); }
+      if (field === 'est') { updateElapsed(); }
+      if (field === 'shadow' || field === 'bridge') { /* enbart spara */ }
+    });
+
+    initSwipe(body);
+  }
+
+  // Swipa en rad åt vänster för att markera bordet som klart.
+  // touch-action: pan-y i CSS gör att vertikal scroll funkar som vanligt
+  // medan horisontella drag hamnar här.
+  const SWIPE_THRESHOLD = 100; // px innan klart-läge nås
+  let sw = null;
+
+  function initSwipe(body) {
+    body.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const tr = e.target.closest('tr');
+      if (!tr || !tr.dataset.id) return;
+      sw = { tr, id: tr.dataset.id, startX: e.clientX, startY: e.clientY, dx: 0, dragging: false, pointerId: e.pointerId };
+    });
+
+    const onMove = (e) => {
+      if (!sw || e.pointerId !== sw.pointerId) return;
+      const dx = e.clientX - sw.startX;
+      const dy = e.clientY - sw.startY;
+      if (!sw.dragging) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+          sw.dragging = true;
+          sw.tr.classList.add('swiping');
+          try { sw.tr.setPointerCapture(sw.pointerId); } catch (_) {}
+          const a = document.activeElement;
+          if (a && sw.tr.contains(a) && a.blur) a.blur();
+        } else if (Math.abs(dy) > 10) {
+          sw = null; return;
+        } else { return; }
+      }
+      sw.dx = Math.min(0, dx); // bara vänster
+      sw.tr.style.transform = `translateX(${Math.max(sw.dx, -window.innerWidth)}px)`;
+      sw.tr.classList.toggle('will-complete', sw.dx < -SWIPE_THRESHOLD);
+    };
+
+    const onUp = () => {
+      if (!sw) return;
+      const { tr, id, dx, dragging, pointerId } = sw;
+      try { tr.releasePointerCapture(pointerId); } catch (_) {}
+      sw = null;
+      tr.classList.remove('swiping', 'will-complete');
+      tr.style.transform = '';
+      if (dragging && dx < -SWIPE_THRESHOLD) setStatus(id, 'done');
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+
+  // ---- Historik -----------------------------------------------------------
+
+  function statusLabel(s) {
+    return s === 'done' ? 'Klart' : s === 'left' ? 'Gick utan bord' : 'I kö';
+  }
+
+  function renderHistory() {
+    const hist = parties
+      .filter((p) => p.status === 'done' || p.status === 'left')
+      .sort((a, b) => (b.statusTime || 0) - (a.statusTime || 0));
+    const box = $('#historyBody');
+    if (hist.length === 0) {
+      box.innerHTML = '<p class="empty-state">Ingen historik ännu.</p>';
+      return;
+    }
+    box.innerHTML = `
+      <table class="hist-table">
+        <thead><tr>
+          <th>Status</th><th>Telefon</th><th>Namn</th><th>PAX</th>
+          <th>Bord</th><th>S/B</th><th>Ankomst</th><th>Klar/lämnade</th><th>Väntat</th>
+        </tr></thead>
+        <tbody>
+          ${hist.map((p) => `
+            <tr class="hist-${p.status}">
+              <td>${statusLabel(p.status)}</td>
+              <td>${escapeHtml(p.phone) || '–'}</td>
+              <td>${escapeHtml(p.name) || '–'}</td>
+              <td>${p.pax ?? '–'}</td>
+              <td>${escapeHtml(p.table) || '–'}</td>
+              <td>${p.shadow ? 'S' : ''}${p.bridge ? 'B' : ''}${!p.shadow && !p.bridge ? '–' : ''}</td>
+              <td>${fmtTime(p.arrival)}</td>
+              <td>${fmtTime(p.statusTime)}</td>
+              <td>${fmtDuration((p.statusTime || p.arrival) - p.arrival)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ---- Summering ----------------------------------------------------------
+
+  function maxConcurrent(list) {
+    // Maximalt antal samtidigt väntande (överlapp av [ankomst, slut]).
+    const events = [];
+    list.forEach((p) => {
+      const end = p.statusTime || Date.now();
+      events.push([p.arrival, 1]);
+      events.push([end, -1]);
+    });
+    events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let cur = 0, max = 0;
+    events.forEach(([, delta]) => { cur += delta; if (cur > max) max = cur; });
+    return max;
+  }
+
+  function computeStats() {
+    const today = todayKey();
+    const list = parties.filter((p) => p.day === today);
+    const totalParties = list.length;
+    const totalPax = list.reduce((s, p) => s + (Number(p.pax) || 0), 0);
+    const left = list.filter((p) => p.status === 'left');
+    const done = list.filter((p) => p.status === 'done');
+    const withPax = list.filter((p) => Number(p.pax) > 0);
+    const avgPax = withPax.length ? totalPax / withPax.length : 0;
+
+    const waits = done.map((p) => (p.statusTime || p.arrival) - p.arrival).filter((m) => m > 0);
+    const avgWait = waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : 0;
+
+    return {
+      totalParties,
+      totalPax,
+      avgPax,
+      avgWaitMs: avgWait,
+      maxConcurrent: maxConcurrent(list),
+      shadow: list.filter((p) => p.shadow).length,
+      bridge: list.filter((p) => p.bridge).length,
+      left: left.length,
+      done: done.length,
+      stillWaiting: list.filter((p) => p.status === 'waiting').length,
+    };
+  }
+
+  function renderSummary() {
+    const s = computeStats();
+    const rows = [
+      ['Totalt antal sällskap', s.totalParties],
+      ['Totalt antal personer', s.totalPax],
+      ['Snittstorlek på sällskap', s.avgPax ? s.avgPax.toFixed(1) : '–'],
+      ['Genomsnittlig väntetid (avklarade)', s.avgWaitMs ? fmtDuration(s.avgWaitMs) : '–'],
+      ['Högsta samtidiga kö', s.maxConcurrent],
+      ['Skugga', s.shadow],
+      ['Brygga', s.bridge],
+      ['Gick utan bord', s.left],
+      ['Avklarade', s.done],
+      ['Kvar i kö nu', s.stillWaiting],
+    ];
+    $('#summaryBody').innerHTML = `
+      <table class="stats-table">
+        <tbody>
+          ${rows.map(([k, v]) => `<tr><td class="stat-key">${k}</td><td class="stat-val">${v}</td></tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  // ---- Export -------------------------------------------------------------
+
+  function download(filename, text, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportJson() {
+    const today = todayKey();
+    const list = parties.filter((p) => p.day === today);
+    const payload = { exported: new Date().toISOString(), day: today, stats: computeStats(), parties: list };
+    download(`vantelista-${today}.json`, JSON.stringify(payload, null, 2), 'application/json');
+    toast('JSON exporterad');
+  }
+
+  function csvCell(v) {
+    const s = v == null ? '' : String(v);
+    return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function exportCsv() {
+    const today = todayKey();
+    const list = parties.filter((p) => p.day === today);
+    const headers = ['status', 'telefon', 'namn', 'pax', 'kommentar', 'bord', 'skugga', 'brygga', 'est_min', 'ankomst', 'status_tid', 'vantat_min'];
+    const lines = [headers.join(';')];
+    list.forEach((p) => {
+      const waitMin = Math.round(((p.statusTime || Date.now()) - p.arrival) / 60000);
+      lines.push([
+        statusLabel(p.status), p.phone, p.name, p.pax ?? '', p.comment,
+        p.table, p.shadow ? 'ja' : '', p.bridge ? 'ja' : '', p.est ?? '',
+        new Date(p.arrival).toISOString(), p.statusTime ? new Date(p.statusTime).toISOString() : '',
+        waitMin,
+      ].map(csvCell).join(';'));
+    });
+    download(`vantelista-${today}.csv`, '﻿' + lines.join('\n'), 'text/csv');
+    toast('CSV exporterad');
+  }
+
+  async function clearDay() {
+    const today = todayKey();
+    const list = parties.filter((p) => p.day === today);
+    if (!confirm(`Rensa dagens ${list.length} poster? Exportera först om du vill behålla en backup.`)) return;
+    await DB.removeMany(list.map((p) => p.id));
+    parties = parties.filter((p) => p.day !== today);
+    writeLocalSnapshot();
+    renderQueue();
+    renderSummary();
+    toast('Dagen rensad');
+  }
+
+  // ---- Modaler ------------------------------------------------------------
+
+  // Sätt sticky-offset för tabellhuvudet till topbarens faktiska höjd,
+  // så att översta raden aldrig hamnar gömd bakom topbaren (den radbryts
+  // och blir olika hög beroende på fönsterbredd).
+  function syncTopbarHeight() {
+    const bar = document.querySelector('.topbar');
+    if (!bar) return;
+    document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px');
+  }
+
+  function openModal(id) { document.getElementById(id).hidden = false; }
+  function closeModal(el) { el.hidden = true; }
+
+  function initModals() {
+    $('#btnHistory').addEventListener('click', () => { renderHistory(); openModal('historyModal'); });
+    $('#btnSummary').addEventListener('click', () => { renderSummary(); openModal('summaryModal'); });
+    document.querySelectorAll('[data-close]').forEach((b) =>
+      b.addEventListener('click', (e) => closeModal(e.target.closest('.modal'))));
+    document.querySelectorAll('.modal').forEach((m) =>
+      m.addEventListener('click', (e) => { if (e.target === m) closeModal(m); }));
+  }
+
+  // ---- Escaping -----------------------------------------------------------
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  }
+  function escapeAttr(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  // ---- Init ---------------------------------------------------------------
+
+  async function init() {
+    initForm();
+    initQueueEvents();
+    initModals();
+
+    $('#btnSave').addEventListener('click', saveAll);
+    $('#btnExportJson').addEventListener('click', exportJson);
+    $('#btnExportCsv').addEventListener('click', exportCsv);
+    $('#btnClearDay').addEventListener('click', clearDay);
+
+    // Läs båda lagren och slå ihop – återhämtar sig om något lager är
+    // tomt, gammalt eller delvis skrivet.
+    try {
+      const fromIdb = await DB.getAll();
+      const snap = readLocalSnapshot();
+      parties = mergeSources(fromIdb, snap ? snap.parties : []);
+      DB.putAll(parties).catch((e) => console.error(e)); // synka tillbaka
+      writeLocalSnapshot();
+    } catch (e) {
+      console.error('Kunde inte läsa IndexedDB, faller tillbaka på localStorage', e);
+      const snap = readLocalSnapshot();
+      parties = snap && snap.parties ? snap.parties : [];
+    }
+    renderQueue();
+
+    // Håll tabellhuvudets sticky-offset i synk med topbarens höjd.
+    syncTopbarHeight();
+    window.addEventListener('resize', syncTopbarHeight);
+
+    // Live-uppdatering av väntetider varje sekund.
+    setInterval(updateElapsed, 1000);
+
+    // Registrera service worker för offline/PWA.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW-registrering misslyckades', e));
+    }
+
+    // Be webbläsaren behålla lagringen permanent – minskar risken att iOS
+    // rensar data efter en tids inaktivitet.
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted()
+        .then((already) => { if (!already) return navigator.storage.persist(); })
+        .catch(() => {});
+    }
+
+    // Spara vid bakgrund/nedstängning. pagehide + visibilitychange är
+    // tillförlitliga på iOS, till skillnad från beforeunload.
+    window.addEventListener('pagehide', flushAll);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flushAll(); });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
