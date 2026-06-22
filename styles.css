@@ -117,6 +117,15 @@ html, body {
 .arrival-preview { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 8px 0; }
 .btn-add { background: var(--green); border-color: var(--green); color: #fff; font-size: 16px; padding: 0 20px; min-height: 46px; align-self: flex-end; }
 
+.field-est { min-width: auto; }
+.est-chips { display: flex; gap: 6px; }
+.est-chip {
+  border: 1px solid var(--line); background: #fff; border-radius: 10px;
+  padding: 0 14px; min-height: 46px; font-size: 16px; font-weight: 700;
+  color: var(--ink-soft); cursor: pointer;
+}
+.est-chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+
 /* ---- Kö-tabell ---- */
 .queue-wrap { margin: 0 16px 32px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: clip; }
 .queue { width: 100%; border-collapse: collapse; }
@@ -187,6 +196,11 @@ html, body {
 .col-actions .btn { padding: 0; width: 44px; height: 44px; font-size: 18px; margin-left: 4px; }
 .btn-done { background: var(--green); border-color: var(--green); color: #fff; }
 .btn-left { background: #fff0f0; border-color: #ffc9c9; color: var(--red); font-weight: 800; }
+.btn-call { background: #fff; border-color: var(--line); }
+.btn-call.is-called { background: #e6f7ec; border-color: #a7e3bd; }
+
+.called-badge { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; margin-left: 6px; }
+.btn-restore { padding: 6px 12px; font-size: 14px; min-height: 40px; white-space: nowrap; }
 
 /* Swipe-vänster för att avklara */
 .row { touch-action: pan-y; transition: transform .18s ease; }
@@ -253,11 +267,57 @@ html, body {
   font-size: 16px; font-weight: 600;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
   z-index: 100;
+  display: flex; align-items: center; gap: 14px;
 }
 .toast[hidden] { display: none; }
+.toast-action {
+  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 16px; font-size: 15px; font-weight: 700; cursor: pointer; min-height: 40px;
+}
 
-/* Smalare skärmar */
-@media (max-width: 820px) {
+/* Smala skärmar (telefon): visa varje sällskap som ett kort med
+   etiketter, så hela raden syns utan sidledsskroll. */
+@media (max-width: 700px) {
   .queue thead { display: none; }
-  .col-checks { width: auto; }
+  .queue, .queue tbody { display: block; }
+  .queue-wrap { overflow: visible; }
+
+  .queue tbody tr {
+    display: block;
+    padding: 10px 14px;
+    border-bottom: 10px solid var(--bg);
+  }
+
+  .queue tbody td {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: auto !important;
+    padding: 6px 0;
+    border: none;
+  }
+  .queue tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 92px;
+    font-size: 12px; font-weight: 700; letter-spacing: .3px;
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+
+  .queue td.col-status { display: none; }
+  .queue td.col-actions::before { display: none; }
+
+  .queue tbody td .cell {
+    flex: 1 1 auto; width: auto;
+    background: #f4f6f8; text-align: left;
+  }
+  .queue tbody td.col-pax .cell,
+  .queue tbody td.col-table .cell,
+  .queue tbody td .est { max-width: 100px; text-align: center; }
+
+  .col-phone { flex-wrap: wrap; }
+  .col-phone .phone { font-size: 18px; }
+  .col-checks { gap: 20px; }
+
+  .col-actions { padding-top: 10px; gap: 8px; }
+  .col-actions .btn { flex: 1 1 auto; width: auto; height: 50px; font-size: 20px; margin: 0; }
 }

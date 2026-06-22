@@ -39,12 +39,27 @@
   }
 
   let toastTimer = null;
-  function toast(msg) {
+  // Visa en kort notis. action = { label, fn } ger en knapp (t.ex. "Ångra").
+  function toast(msg, action) {
     const el = $('#toast');
-    el.textContent = msg;
+    el.innerHTML = '';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    el.appendChild(span);
+    if (action) {
+      const btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = action.label;
+      btn.addEventListener('click', () => {
+        el.hidden = true;
+        clearTimeout(toastTimer);
+        action.fn();
+      });
+      el.appendChild(btn);
+    }
     el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2200);
+    toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2200);
   }
 
   // ---- Persistens ---------------------------------------------------------
@@ -139,22 +154,24 @@
     return `
       <tr data-id="${p.id}" class="row" data-status="${p.status}">
         <td class="col-status"><span class="dot"></span></td>
-        <td class="col-phone">
+        <td class="col-phone" data-label="Telefon">
           <span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span>
           <button class="phone-edit" data-act="edit-phone" title="Ändra nummer">✎</button>
+          ${p.calledAt ? `<span class="called-badge" title="Uppringd">📞 ${fmtTime(p.calledAt)}</span>` : ''}
         </td>
-        <td><input class="cell" data-f="name" value="${escapeAttr(p.name)}" placeholder="Namn" /></td>
-        <td class="col-pax"><input class="cell num" data-f="pax" type="number" min="1" inputmode="numeric" value="${p.pax ?? ''}" placeholder="–" /></td>
-        <td><input class="cell" data-f="comment" value="${escapeAttr(p.comment)}" placeholder="–" /></td>
-        <td class="col-table"><input class="cell num" data-f="table" value="${escapeAttr(p.table)}" placeholder="–" /></td>
-        <td class="col-checks">
+        <td data-label="Namn"><input class="cell" data-f="name" value="${escapeAttr(p.name)}" placeholder="Namn" /></td>
+        <td class="col-pax" data-label="PAX"><input class="cell num" data-f="pax" type="number" min="1" inputmode="numeric" value="${p.pax ?? ''}" placeholder="–" /></td>
+        <td data-label="Kommentar"><input class="cell" data-f="comment" value="${escapeAttr(p.comment)}" placeholder="–" /></td>
+        <td class="col-table" data-label="Bord"><input class="cell num" data-f="table" value="${escapeAttr(p.table)}" placeholder="–" /></td>
+        <td class="col-checks" data-label="Skugga / Brygga">
           <label class="chk"><input type="checkbox" data-f="shadow" ${p.shadow ? 'checked' : ''}/> S</label>
           <label class="chk"><input type="checkbox" data-f="bridge" ${p.bridge ? 'checked' : ''}/> B</label>
         </td>
-        <td class="col-time arrival">${fmtTime(p.arrival)}</td>
-        <td class="col-time"><input class="cell num est" data-f="est" type="number" min="0" inputmode="numeric" value="${p.est ?? ''}" placeholder="–" /></td>
-        <td class="col-time elapsed" data-elapsed>–</td>
+        <td class="col-time arrival" data-label="Ankomst">${fmtTime(p.arrival)}</td>
+        <td class="col-time" data-label="Est."><input class="cell num est" data-f="est" type="number" min="0" step="15" inputmode="numeric" value="${p.est ?? ''}" placeholder="–" /></td>
+        <td class="col-time elapsed" data-elapsed data-label="Väntat">–</td>
         <td class="col-actions">
+          <button class="btn btn-call ${p.calledAt ? 'is-called' : ''}" data-act="called" title="Markera uppringd">📞</button>
           <button class="btn btn-done" data-act="done" title="Klart">✓</button>
           <button class="btn btn-left" data-act="left" title="Gick utan bord">✕</button>
         </td>
@@ -234,8 +251,45 @@
   function setStatus(id, status) {
     const p = byId(id);
     if (!p) return;
+    const prev = { status: p.status, statusTime: p.statusTime };
     p.status = status;
     p.statusTime = Date.now();
+    persistNow(p);
+    renderQueue();
+    if (status === 'done' || status === 'left') {
+      const label = status === 'done' ? 'Klart' : 'Gick utan bord';
+      const who = p.name || p.phone || 'sällskap';
+      toast(`${label}: ${who}`, { label: 'Ångra', fn: () => revertStatus(id, prev) });
+    }
+  }
+
+  function revertStatus(id, prev) {
+    const p = byId(id);
+    if (!p) return;
+    p.status = prev.status;
+    p.statusTime = prev.statusTime;
+    persistNow(p);
+    renderQueue();
+    toast('Återställd');
+  }
+
+  // Återför ett sällskap från historiken till kön (vid felklick).
+  function restoreToQueue(id) {
+    const p = byId(id);
+    if (!p) return;
+    p.status = 'waiting';
+    p.statusTime = null;
+    persistNow(p);
+    renderQueue();
+    renderHistory();
+    toast('Återförd till kön');
+  }
+
+  // Markera/avmarkera att sällskapet är uppringt (med tidsstämpel).
+  function toggleCalled(id) {
+    const p = byId(id);
+    if (!p) return;
+    p.calledAt = p.calledAt ? null : Date.now();
     persistNow(p);
     renderQueue();
   }
@@ -277,6 +331,7 @@
   // ---- Add-form ------------------------------------------------------------
 
   let pendingArrival = null; // sätts när man börjar skriva telefon
+  let pendingEst = null;     // vald est. väntetid (minuter) i add-formuläret
 
   // Returnerar ett varningsmeddelande om numret varken är 10 siffror
   // (vanligt svenskt mobilnummer) eller börjar med landskod, annars null.
@@ -299,12 +354,14 @@
   }
 
   function resetForm() {
-    ['f-phone', 'f-name', 'f-pax', 'f-comment', 'f-est'].forEach((id) => {
+    ['f-phone', 'f-name', 'f-pax', 'f-comment'].forEach((id) => {
       document.getElementById(id).value = '';
     });
     document.getElementById('f-shadow').checked = false;
     document.getElementById('f-bridge').checked = false;
     pendingArrival = null;
+    pendingEst = null;
+    document.querySelectorAll('#estChips .est-chip').forEach((c) => c.classList.remove('selected'));
     $('#f-arrival').textContent = '–';
     updatePhoneWarning();
   }
@@ -324,6 +381,16 @@
       updatePhoneWarning();
     });
 
+    // Kvarts-knappar för estimerad väntetid (toggla val).
+    $('#estChips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.est-chip');
+      if (!chip) return;
+      const min = Number(chip.dataset.min);
+      pendingEst = pendingEst === min ? null : min;
+      document.querySelectorAll('#estChips .est-chip').forEach((c) =>
+        c.classList.toggle('selected', Number(c.dataset.min) === pendingEst));
+    });
+
     $('#addForm').addEventListener('submit', (e) => {
       e.preventDefault();
       const data = {
@@ -331,7 +398,7 @@
         name: $('#f-name').value.trim(),
         pax: $('#f-pax').value.trim(),
         comment: $('#f-comment').value.trim(),
-        est: $('#f-est').value.trim(),
+        est: pendingEst == null ? '' : pendingEst,
         shadow: $('#f-shadow').checked,
         bridge: $('#f-bridge').checked,
         arrival: pendingArrival || Date.now(),
@@ -361,6 +428,8 @@
         if (p) copyPhone(p.phone);
       } else if (act === 'edit-phone') {
         startPhoneEdit(tr, id);
+      } else if (act === 'called') {
+        toggleCalled(id);
       } else if (act === 'done') {
         setStatus(id, 'done');
       } else if (act === 'left') {
@@ -483,7 +552,7 @@
       <table class="hist-table">
         <thead><tr>
           <th>Status</th><th>Telefon</th><th>Namn</th><th>PAX</th>
-          <th>Bord</th><th>S/B</th><th>Ankomst</th><th>Klar/lämnade</th><th>Väntat</th>
+          <th>Bord</th><th>S/B</th><th>Ankomst</th><th>Klar/lämnade</th><th>Väntat</th><th></th>
         </tr></thead>
         <tbody>
           ${hist.map((p) => `
@@ -497,6 +566,7 @@
               <td>${fmtTime(p.arrival)}</td>
               <td>${fmtTime(p.statusTime)}</td>
               <td>${fmtDuration((p.statusTime || p.arrival) - p.arrival)}</td>
+              <td><button class="btn btn-restore" data-act="restore" data-id="${p.id}" title="Återför till kön">↩︎ Till kö</button></td>
             </tr>`).join('')}
         </tbody>
       </table>`;
@@ -635,12 +705,27 @@
     document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px');
   }
 
+  // Håll skärmen vaken under pågående service (släpps automatiskt om man
+  // växlar bort; återtas vid visibilitychange).
+  let wakeLock = null;
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator) || document.hidden) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener && wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { /* kräver ibland en användargest – återförsök sker vid interaktion */ }
+  }
+
   function openModal(id) { document.getElementById(id).hidden = false; }
   function closeModal(el) { el.hidden = true; }
 
   function initModals() {
     $('#btnHistory').addEventListener('click', () => { renderHistory(); openModal('historyModal'); });
     $('#btnSummary').addEventListener('click', () => { renderSummary(); openModal('summaryModal'); });
+    $('#historyBody').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act="restore"]');
+      if (b) restoreToQueue(b.dataset.id);
+    });
     document.querySelectorAll('[data-close]').forEach((b) =>
       b.addEventListener('click', (e) => closeModal(e.target.closest('.modal'))));
     document.querySelectorAll('.modal').forEach((m) =>
@@ -706,7 +791,17 @@
     // Spara vid bakgrund/nedstängning. pagehide + visibilitychange är
     // tillförlitliga på iOS, till skillnad från beforeunload.
     window.addEventListener('pagehide', flushAll);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) flushAll(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushAll();
+      else requestWakeLock();
+    });
+
+    // Håll skärmen vaken. Återförsök vid första interaktion ifall en gest krävs.
+    requestWakeLock();
+    document.addEventListener('pointerdown', function once() {
+      requestWakeLock();
+      document.removeEventListener('pointerdown', once);
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);

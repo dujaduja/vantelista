@@ -46,9 +46,14 @@
         <label>Kommentar</label>
         <input type="text" id="f-comment" placeholder="Kommentar" />
       </div>
-      <div class="field field-narrow">
-        <label>Est. (min)</label>
-        <input type="number" id="f-est" inputmode="numeric" min="0" placeholder="–" />
+      <div class="field field-est">
+        <label>Est. väntetid</label>
+        <div class="est-chips" id="estChips">
+          <button type="button" class="est-chip" data-min="15">15</button>
+          <button type="button" class="est-chip" data-min="30">30</button>
+          <button type="button" class="est-chip" data-min="45">45</button>
+          <button type="button" class="est-chip" data-min="60">60</button>
+        </div>
       </div>
       <div class="field field-checks">
         <label class="chk"><input type="checkbox" id="f-shadow" /> Skugga</label>
