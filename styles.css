@@ -82,6 +82,12 @@ html, body {
 .counter-num { font-size: 24px; font-weight: 800; line-height: 1; }
 .counter-label { font-size: 11px; opacity: .8; text-transform: uppercase; letter-spacing: .5px; }
 
+.clock {
+  font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: #fff; background: rgba(255, 255, 255, .12); border-radius: 10px;
+  padding: 6px 16px; align-self: center; letter-spacing: 1px; margin-left: 6px;
+}
+
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 10px; flex-wrap: wrap; }
 
 /* ---- Knappar ---- */
@@ -214,7 +220,7 @@ html, body {
 .col-phone { white-space: nowrap; }
 .phone-edit {
   border: none; background: transparent; color: var(--muted);
-  font-size: 15px; cursor: pointer; padding: 8px; min-height: 42px; min-width: 36px;
+  font-size: 15px; cursor: pointer; padding: 6px; min-height: 34px; min-width: 32px;
   border-radius: 8px; vertical-align: middle;
 }
 .phone-edit:hover { color: var(--primary); background: var(--accent-soft); }
@@ -307,6 +313,10 @@ html, body {
 /* Smala skärmar (telefon): visa varje sällskap som ett kort med
    etiketter, så hela raden syns utan sidledsskroll. */
 @media (max-width: 700px) {
+  /* På telefon: topbaren scrollar med (inte sticky) och klockan döljs. */
+  .topbar { position: static; }
+  .clock { display: none; }
+
   .queue thead { display: none; }
   .queue, .queue tbody { display: block; }
   .queue-wrap { overflow: visible; }
@@ -384,18 +394,19 @@ html, body {
 }
 .pax-chip.selected .pc-count { background: rgba(255,255,255,.25); }
 
-/* ---- Extra kompakt: ännu tätare, ~en rad per sällskap ---- */
-.compact .queue tbody td { padding: 0 8px; }
-.compact .cell { min-height: 28px; padding: 2px 7px; font-size: 14px; }
-.compact .phone { min-height: 28px; padding: 2px 8px; font-size: 14px; }
-.compact .col-actions .btn { width: 32px; height: 32px; font-size: 14px; margin-left: 3px; }
-.compact .queue thead th { padding: 3px 8px; }
-.compact .queue .chk { font-size: 12px; }
+/* ---- Extra kompakt: raden är lika hög som en åtgärds-ikon (~30px) ---- */
+.compact .queue tbody td { padding: 0 7px; }
+.compact .cell { min-height: 30px; padding: 1px 7px; font-size: 14px; }
+.compact .phone { min-height: 30px; padding: 1px 8px; font-size: 14px; }
+.compact .phone-edit { min-height: 30px; padding: 4px; min-width: 28px; font-size: 14px; }
+.compact .col-actions .btn { width: 30px; height: 30px; font-size: 14px; margin-left: 3px; }
+.compact .queue thead th { padding: 2px 7px; }
+.compact .queue .chk { font-size: 12px; gap: 4px; }
 .compact .chk input { width: 18px; height: 18px; }
 .compact .called-badge { font-size: 11px; }
 @media (max-width: 700px) {
   .compact .queue tbody tr { padding: 1px 14px; }
-  .compact .card-summary { padding: 5px 0; }
+  .compact .card-summary { padding: 4px 0; }
   .compact .cs-name { font-size: 16px; }
 }
 

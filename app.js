@@ -147,6 +147,13 @@
 
   // ---- Rendering av kö ----------------------------------------------------
 
+  function updateClock() {
+    const el = $('#clock');
+    if (!el) return;
+    const d = new Date();
+    el.textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
   function renderCounters() {
     const w = waiting();
     $('#countParties').textContent = w.length;
@@ -884,8 +891,9 @@
     syncTopbarHeight();
     window.addEventListener('resize', syncTopbarHeight);
 
-    // Live-uppdatering av väntetider varje sekund.
-    setInterval(updateElapsed, 1000);
+    // Live-uppdatering av väntetider och klocka varje sekund.
+    updateClock();
+    setInterval(() => { updateElapsed(); updateClock(); }, 1000);
 
     // Registrera service worker för offline/PWA. När en ny version tar över
     // laddas sidan om en gång automatiskt så att senaste koden visas.
