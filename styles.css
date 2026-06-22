@@ -228,7 +228,7 @@ html, body {
 
 .queue .chk { font-size: 13px; }
 
-.col-actions .btn { padding: 0; width: 38px; height: 38px; font-size: 16px; margin-left: 4px; }
+.col-actions .btn { padding: 0; width: 38px; height: 38px; min-height: 0; font-size: 16px; margin-left: 4px; }
 .btn-done { background: var(--green); border-color: var(--green); color: #fff; }
 .btn-left { background: #fff0f0; border-color: #ffc9c9; color: var(--red); font-weight: 800; }
 .btn-call { background: #fff; border-color: var(--line); }
@@ -394,16 +394,21 @@ html, body {
 }
 .pax-chip.selected .pc-count { background: rgba(255,255,255,.25); }
 
-/* ---- Extra kompakt: raden är lika hög som en åtgärds-ikon (~30px) ---- */
-.compact .queue tbody td { padding: 0 7px; }
-.compact .cell { min-height: 30px; padding: 1px 7px; font-size: 14px; }
-.compact .phone { min-height: 30px; padding: 1px 8px; font-size: 14px; }
-.compact .phone-edit { min-height: 30px; padding: 4px; min-width: 28px; font-size: 14px; }
-.compact .col-actions .btn { width: 30px; height: 30px; font-size: 14px; margin-left: 3px; }
-.compact .queue thead th { padding: 2px 7px; }
+/* ---- Extra kompakt: Excel-likt rutnät, radhöjd ~28px ---- */
+.compact .queue tbody td { padding: 0 6px; }
+.compact .cell { min-height: 28px; padding: 0 6px; font-size: 13px; }
+.compact .phone { min-height: 28px; padding: 0 6px; font-size: 13px; }
+.compact .phone-edit { min-height: 28px; padding: 2px; min-width: 26px; font-size: 13px; }
+.compact .col-actions .btn { width: 28px; height: 28px; min-height: 0; font-size: 13px; margin-left: 2px; }
+.compact .queue thead th { padding: 1px 6px; }
 .compact .queue .chk { font-size: 12px; gap: 4px; }
-.compact .chk input { width: 18px; height: 18px; }
-.compact .called-badge { font-size: 11px; }
+.compact .chk input { width: 16px; height: 16px; }
+.compact .called-badge { font-size: 10px; }
+/* Rutnät bara i tabellvyn (inte mobilkorten) */
+@media (min-width: 701px) {
+  .compact .queue tbody td, .compact .queue thead th { border-right: 1px solid var(--line); }
+  .compact .queue tbody td:last-child, .compact .queue thead th:last-child { border-right: none; }
+}
 @media (max-width: 700px) {
   .compact .queue tbody tr { padding: 1px 14px; }
   .compact .card-summary { padding: 4px 0; }
