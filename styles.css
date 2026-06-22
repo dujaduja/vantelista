@@ -159,14 +159,14 @@ html, body {
   text-transform: uppercase;
   letter-spacing: .4px;
   color: var(--ink-soft);
-  padding: 12px 10px;
+  padding: 6px 10px;
   border-bottom: 2px solid var(--line);
   background: var(--thead-bg);
   position: sticky;
   top: var(--topbar-h, 72px);
   z-index: 5;
 }
-.queue tbody td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.queue tbody td { padding: 2px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .queue tbody tr:last-child td { border-bottom: none; }
 
 .col-status { width: 22px; padding-left: 14px !important; }
@@ -183,27 +183,29 @@ html, body {
 
 .cell {
   width: 100%;
-  font-size: 16px;
-  padding: 9px 10px;
+  font-size: 15px;
+  padding: 5px 9px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  min-height: 42px;
+  color: var(--ink);
+  min-height: 34px;
 }
+.cell::placeholder { color: var(--muted); }
 .cell:hover { background: var(--hover-bg); }
 .cell:focus { outline: none; border-color: var(--primary); background: var(--input-bg); }
 .cell.num { text-align: center; }
 
 .phone {
   display: inline-block;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  padding: 9px 12px;
+  padding: 5px 10px;
   border-radius: 8px;
   cursor: pointer;
   color: var(--primary);
-  min-height: 42px;
+  min-height: 34px;
 }
 .phone:hover { background: var(--accent-soft); }
 .phone:active { background: var(--accent-soft); }
@@ -218,9 +220,9 @@ html, body {
 .phone-edit:hover { color: var(--primary); background: var(--accent-soft); }
 .phone-input { width: 150px; font-variant-numeric: tabular-nums; }
 
-.queue .chk { font-size: 14px; }
+.queue .chk { font-size: 13px; }
 
-.col-actions .btn { padding: 0; width: 44px; height: 44px; font-size: 18px; margin-left: 4px; }
+.col-actions .btn { padding: 0; width: 38px; height: 38px; font-size: 16px; margin-left: 4px; }
 .btn-done { background: var(--green); border-color: var(--green); color: #fff; }
 .btn-left { background: #fff0f0; border-color: #ffc9c9; color: var(--red); font-weight: 800; }
 .btn-call { background: #fff; border-color: var(--line); }
@@ -382,17 +384,18 @@ html, body {
 }
 .pax-chip.selected .pc-count { background: rgba(255,255,255,.25); }
 
-/* ---- Kompakt täthet (fler rader på skärmen) ---- */
-.compact .queue tbody td { padding: 2px 10px; }
-.compact .cell { min-height: 34px; padding: 5px 9px; font-size: 15px; }
-.compact .phone { min-height: 34px; padding: 5px 10px; font-size: 15px; }
-.compact .col-actions .btn { width: 38px; height: 38px; font-size: 16px; }
-.compact .queue thead th { padding: 6px 10px; }
-.compact .queue .chk { font-size: 13px; }
+/* ---- Extra kompakt: ännu tätare, ~en rad per sällskap ---- */
+.compact .queue tbody td { padding: 0 8px; }
+.compact .cell { min-height: 28px; padding: 2px 7px; font-size: 14px; }
+.compact .phone { min-height: 28px; padding: 2px 8px; font-size: 14px; }
+.compact .col-actions .btn { width: 32px; height: 32px; font-size: 14px; margin-left: 3px; }
+.compact .queue thead th { padding: 3px 8px; }
+.compact .queue .chk { font-size: 12px; }
+.compact .chk input { width: 18px; height: 18px; }
 .compact .called-badge { font-size: 11px; }
 @media (max-width: 700px) {
-  .compact .queue tbody tr { padding: 2px 14px; }
-  .compact .card-summary { padding: 6px 0; }
+  .compact .queue tbody tr { padding: 1px 14px; }
+  .compact .card-summary { padding: 5px 0; }
   .compact .cs-name { font-size: 16px; }
 }
 
