@@ -688,6 +688,13 @@
     return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 
+  // Tvinga kalkylprogram (Excel/Numbers) att behålla värdet som text, så att
+  // inledande nollor i t.ex. telefonnummer inte försvinner.
+  function csvText(v) {
+    const s = v == null ? '' : String(v);
+    return s === '' ? '' : '="' + s.replace(/"/g, '""') + '"';
+  }
+
   function exportCsv() {
     const today = todayKey();
     const list = parties.filter((p) => p.day === today);
@@ -696,7 +703,7 @@
     list.forEach((p) => {
       const waitMin = Math.round(((p.statusTime || Date.now()) - p.arrival) / 60000);
       lines.push([
-        statusLabel(p.status), p.phone, p.name, p.pax ?? '', p.comment,
+        statusLabel(p.status), csvText(p.phone), p.name, p.pax ?? '', p.comment,
         p.table, p.shadow ? 'ja' : '', p.bridge ? 'ja' : '', p.est ?? '',
         new Date(p.arrival).toISOString(), p.statusTime ? new Date(p.statusTime).toISOString() : '',
         waitMin,
