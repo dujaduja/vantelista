@@ -463,6 +463,7 @@
     document.getElementById('f-shadow').checked = false;
     document.getElementById('f-bridge').checked = false;
     document.getElementById('f-pax').classList.remove('warn');
+    document.getElementById('f-name').classList.remove('warn');
     pendingArrival = null;
     pendingEst = null;
     document.querySelectorAll('#estChips .est-chip').forEach((c) => c.classList.remove('selected'));
@@ -483,10 +484,17 @@
         $('#f-arrival').textContent = '–';
       }
       updatePhoneWarning();
+      if (phone.value.trim() !== '') $('#f-name').classList.remove('warn');
     });
 
     // Ta bort PAX-varning så fort man börjar fylla i.
     $('#f-pax').addEventListener('input', () => $('#f-pax').classList.remove('warn'));
+
+    // Namn ifyllt uppfyller "namn eller nummer"-kravet – ta bort varningen.
+    $('#f-name').addEventListener('input', () => {
+      $('#f-name').classList.remove('warn');
+      $('#f-phone').classList.remove('warn');
+    });
 
     // Kvarts-knappar för estimerad väntetid (toggla val).
     $('#estChips').addEventListener('click', (e) => {
@@ -515,6 +523,13 @@
         const pax = $('#f-pax');
         pax.classList.add('warn');
         pax.focus();
+        return;
+      }
+      if (!data.name && !data.phone) {
+        toast('Fyll i namn eller telefonnummer');
+        $('#f-name').classList.add('warn');
+        $('#f-phone').classList.add('warn');
+        $('#f-name').focus();
         return;
       }
       addParty(data);
