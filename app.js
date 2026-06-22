@@ -6,6 +6,9 @@
   /** @type {Array} alla sällskap (alla statusar, alla dagar) */
   let parties = [];
 
+  /** @type {Set<string>} id på kort som är expanderade (endast mobilvyn) */
+  const expandedCards = new Set();
+
   // ---- Hjälpare -----------------------------------------------------------
 
   const $ = (sel) => document.querySelector(sel);
@@ -154,6 +157,14 @@
     return `
       <tr data-id="${p.id}" class="row" data-status="${p.status}">
         <td class="col-status"><span class="dot"></span></td>
+        <td class="card-summary" data-act="toggle-card">
+          <span class="cs-dot"></span>
+          <span class="cs-name">${escapeHtml(p.name) || '<span class="cs-noname">(utan namn)</span>'}</span>
+          ${p.pax ? `<span class="cs-pax">${p.pax} pers</span>` : ''}
+          ${String(p.table || '').trim() ? `<span class="cs-bord">Bord ${escapeHtml(p.table)}</span>` : ''}
+          <span class="cs-wait" data-elapsed-sum>–</span>
+          <span class="cs-chevron">▾</span>
+        </td>
         <td class="col-phone" data-label="Telefon">
           <span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span>
           <button class="phone-edit" data-act="edit-phone" title="Ändra nummer">✎</button>
@@ -202,6 +213,7 @@
       if (!p) return;
       tr.classList.toggle('assigned', p.status === 'waiting' && !!String(p.table || '').trim());
       tr.classList.toggle('is-done', p.status === 'done');
+      tr.classList.toggle('expanded', expandedCards.has(tr.dataset.id));
     });
   }
 
@@ -211,13 +223,15 @@
     document.querySelectorAll('#queueBody tr').forEach((tr) => {
       const p = byId(tr.dataset.id);
       if (!p) return;
-      const cell = tr.querySelector('[data-elapsed]');
       const end = p.status === 'waiting' ? now : (p.statusTime || now);
       const elapsedMs = end - p.arrival;
-      cell.textContent = fmtDuration(elapsedMs);
-      const over = p.est != null && p.est !== '' && elapsedMs > Number(p.est) * 60000;
-      cell.classList.toggle('overdue', !!over && p.status === 'waiting');
-      tr.classList.toggle('overdue-row', !!over && p.status === 'waiting');
+      const text = fmtDuration(elapsedMs);
+      const over = !!(p.est != null && p.est !== '' && elapsedMs > Number(p.est) * 60000) && p.status === 'waiting';
+      const cell = tr.querySelector('[data-elapsed]');
+      if (cell) { cell.textContent = text; cell.classList.toggle('overdue', over); }
+      const sum = tr.querySelector('[data-elapsed-sum]');
+      if (sum) { sum.textContent = text; sum.classList.toggle('overdue', over); }
+      tr.classList.toggle('overdue-row', over);
     });
   }
 
@@ -254,6 +268,7 @@
     const prev = { status: p.status, statusTime: p.statusTime };
     p.status = status;
     p.statusTime = Date.now();
+    expandedCards.delete(id);
     persistNow(p);
     renderQueue();
     if (status === 'done' || status === 'left') {
@@ -283,6 +298,13 @@
     renderQueue();
     renderHistory();
     toast('Återförd till kön');
+  }
+
+  // Fäll ut/ihop ett kort (endast mobilvyn). Tillståndet sparas i en Set så
+  // det överlever omrendering.
+  function toggleCard(tr, id) {
+    if (expandedCards.has(id)) { expandedCards.delete(id); tr.classList.remove('expanded'); }
+    else { expandedCards.add(id); tr.classList.add('expanded'); }
   }
 
   // Markera/avmarkera att sällskapet är uppringt (med tidsstämpel).
@@ -423,7 +445,9 @@
       const tr = e.target.closest('tr');
       const id = tr && tr.dataset.id;
       const act = actEl.dataset.act;
-      if (act === 'copy') {
+      if (act === 'toggle-card') {
+        toggleCard(tr, id);
+      } else if (act === 'copy') {
         const p = byId(id);
         if (p) copyPhone(p.phone);
       } else if (act === 'edit-phone') {

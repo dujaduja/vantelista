@@ -154,6 +154,9 @@ html, body {
 
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
 
+/* Summary-raden används bara i mobilens kortvy; dold i tabellvyn. */
+.card-summary { display: none; }
+
 .cell {
   width: 100%;
   font-size: 16px;
@@ -284,9 +287,26 @@ html, body {
 
   .queue tbody tr {
     display: block;
-    padding: 10px 14px;
+    padding: 6px 14px;
     border-bottom: 10px solid var(--bg);
   }
+
+  /* Hopfällt kort: visa bara summary-raden. Expanderat: visa allt. */
+  .card-summary { display: flex !important; align-items: center; gap: 10px; width: auto !important; padding: 8px 0; cursor: pointer; }
+  .card-summary::before { display: none; }
+  .queue tbody tr:not(.expanded) td:not(.card-summary) { display: none; }
+
+  .cs-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+  .cs-name { font-size: 18px; font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cs-noname { color: var(--muted); font-weight: 600; }
+  .cs-pax { font-weight: 700; color: var(--ink-soft); flex: 0 0 auto; }
+  .cs-bord { font-weight: 700; color: #8a6d00; background: #fff; border: 1px solid var(--yellow-line); padding: 2px 8px; border-radius: 8px; flex: 0 0 auto; }
+  .cs-wait { font-variant-numeric: tabular-nums; font-weight: 700; flex: 0 0 auto; }
+  .cs-wait.overdue { color: var(--red); }
+  .cs-chevron { color: var(--muted); flex: 0 0 auto; transition: transform .15s ease; }
+  .row.expanded .cs-chevron { transform: rotate(180deg); }
+  .row.assigned .cs-dot { background: var(--yellow-line); }
+  .row.overdue-row .cs-dot { background: var(--red); }
 
   .queue tbody td {
     display: flex;
