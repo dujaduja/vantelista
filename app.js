@@ -709,6 +709,15 @@
     const waits = done.map((p) => (p.statusTime || p.arrival) - p.arrival).filter((m) => m > 0);
     const avgWait = waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : 0;
 
+    // Nationaliteter: landskod -> land, annars svensk (inhemskt/utan nummer).
+    const nationalities = {};
+    list.forEach((p) => {
+      const c = detectCountry(p.phone);
+      const iso = c ? c.iso : 'SE';
+      nationalities[iso] = (nationalities[iso] || 0) + 1;
+    });
+    const seCount = nationalities['SE'] || 0;
+
     return {
       totalParties,
       totalPax,
@@ -721,6 +730,9 @@
       left: left.length,
       done: done.length,
       stillWaiting: list.filter((p) => p.status === 'waiting').length,
+      nationalities,
+      nationalityCount: Object.keys(nationalities).length,
+      swedishPct: totalParties ? Math.round((seCount / totalParties) * 100) : 0,
     };
   }
 
@@ -738,13 +750,20 @@
       ['Gick utan bord', s.left],
       ['Avklarade', s.done],
       ['Kvar i kö nu', s.stillWaiting],
+      ['Antal nationaliteter', s.nationalityCount],
+      ['Andel svenskar', s.swedishPct + ' %'],
     ];
+    const natChips = Object.keys(s.nationalities)
+      .sort((a, b) => s.nationalities[b] - s.nationalities[a])
+      .map((iso) => `<span class="nat-chip">${isoToFlag(iso)} ${iso} · ${s.nationalities[iso]}</span>`)
+      .join('');
     $('#summaryBody').innerHTML = `
       <table class="stats-table">
         <tbody>
           ${rows.map(([k, v]) => `<tr><td class="stat-key">${k}</td><td class="stat-val">${v}</td></tr>`).join('')}
         </tbody>
-      </table>`;
+      </table>
+      ${natChips ? `<div class="nat-block"><div class="nat-title">Nationaliteter</div><div class="nat-list">${natChips}</div></div>` : ''}`;
   }
 
   // ---- Export -------------------------------------------------------------
