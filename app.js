@@ -775,9 +775,18 @@
     // Live-uppdatering av väntetider varje sekund.
     setInterval(updateElapsed, 1000);
 
-    // Registrera service worker för offline/PWA.
+    // Registrera service worker för offline/PWA. När en ny version tar över
+    // laddas sidan om en gång automatiskt så att senaste koden visas.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW-registrering misslyckades', e));
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloading) return;
+        reloading = true;
+        window.location.reload();
+      });
+      navigator.serviceWorker.register('sw.js')
+        .then((reg) => reg.update && reg.update())
+        .catch((e) => console.warn('SW-registrering misslyckades', e));
     }
 
     // Be webbläsaren behålla lagringen permanent – minskar risken att iOS

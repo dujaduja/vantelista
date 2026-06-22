@@ -1,6 +1,6 @@
 /* Service worker – cachar app-skalet så appen fungerar offline.
    Bumpa CACHE-versionen när filer ändras för att tvinga uppdatering. */
-const CACHE = 'vantelista-v10';
+const CACHE = 'vantelista-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -28,17 +28,15 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
-  // Cache-first för app-skalet; nätet som fallback.
+  // Nät-först: hämtar alltid senaste när man är online (så uppdateringar
+  // syns direkt), och faller tillbaka på cachen offline.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => cached);
-    })
+    fetch(req)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
   );
 });
