@@ -180,7 +180,7 @@ html, body {
 .col-table { width: 84px; }
 .col-checks { width: 130px; }
 .col-time { width: 90px; font-variant-numeric: tabular-nums; }
-.col-actions { width: 110px; text-align: right; }
+.col-actions { width: 110px; text-align: right; white-space: nowrap; }
 
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
 
