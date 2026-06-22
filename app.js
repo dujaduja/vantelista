@@ -139,7 +139,10 @@
     return `
       <tr data-id="${p.id}" class="row" data-status="${p.status}">
         <td class="col-status"><span class="dot"></span></td>
-        <td><span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span></td>
+        <td class="col-phone">
+          <span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span>
+          <button class="phone-edit" data-act="edit-phone" title="Ändra nummer">✎</button>
+        </td>
         <td><input class="cell" data-f="name" value="${escapeAttr(p.name)}" placeholder="Namn" /></td>
         <td class="col-pax"><input class="cell num" data-f="pax" type="number" min="1" inputmode="numeric" value="${p.pax ?? ''}" placeholder="–" /></td>
         <td><input class="cell" data-f="comment" value="${escapeAttr(p.comment)}" placeholder="–" /></td>
@@ -356,6 +359,8 @@
       if (act === 'copy') {
         const p = byId(id);
         if (p) copyPhone(p.phone);
+      } else if (act === 'edit-phone') {
+        startPhoneEdit(tr, id);
       } else if (act === 'done') {
         setStatus(id, 'done');
       } else if (act === 'left') {
@@ -380,6 +385,34 @@
     });
 
     initSwipe(body);
+  }
+
+  // Redigera telefonnumret i efterhand (pennan). Byter ut numret mot ett
+  // fält; Enter/blur sparar, Escape avbryter.
+  function startPhoneEdit(tr, id) {
+    const p = byId(id);
+    if (!p) return;
+    const td = tr.querySelector('.col-phone');
+    if (!td) return;
+    td.innerHTML = `<input class="cell phone-input" type="tel" inputmode="tel" value="${escapeAttr(p.phone)}" />`;
+    const input = td.querySelector('input');
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+    let settled = false;
+    const commit = () => {
+      if (settled) return; settled = true;
+      updateField(id, 'phone', input.value.trim());
+      renderQueue();
+    };
+    const cancel = () => {
+      if (settled) return; settled = true;
+      renderQueue();
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
   }
 
   // Swipa en rad åt vänster för att markera bordet som klart.

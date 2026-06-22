@@ -173,6 +173,15 @@ html, body {
 .phone:active { background: #dbe7ff; }
 .muted { color: var(--muted); }
 
+.col-phone { white-space: nowrap; }
+.phone-edit {
+  border: none; background: transparent; color: var(--muted);
+  font-size: 15px; cursor: pointer; padding: 8px; min-height: 42px; min-width: 36px;
+  border-radius: 8px; vertical-align: middle;
+}
+.phone-edit:hover { color: var(--primary); background: #eef4ff; }
+.phone-input { width: 150px; font-variant-numeric: tabular-nums; }
+
 .queue .chk { font-size: 14px; }
 
 .col-actions .btn { padding: 0; width: 44px; height: 44px; font-size: 18px; margin-left: 4px; }
