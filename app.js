@@ -161,12 +161,15 @@
   }
 
   function rowHtml(p) {
+    const ctag = countryInfo(p.phone);
+    const flag = countryFlag(p.phone);
     return `
       <tr data-id="${p.id}" class="row" data-status="${p.status}">
         <td class="col-status"><span class="dot"></span></td>
         <td class="card-summary" data-act="toggle-card">
           <span class="cs-dot"></span>
           <span class="cs-name">${escapeHtml(p.name) || '<span class="cs-noname">(utan namn)</span>'}</span>
+          ${flag ? `<span class="cs-flag">${flag}</span>` : ''}
           ${p.pax ? `<span class="cs-pax">${p.pax} pers</span>` : ''}
           ${String(p.table || '').trim() ? `<span class="cs-bord">Bord ${escapeHtml(p.table)}</span>` : ''}
           <span class="cs-wait" data-elapsed-sum>–</span>
@@ -174,6 +177,7 @@
         </td>
         <td class="col-phone" data-label="Telefon">
           <span class="phone" data-act="copy">${escapeHtml(p.phone) || '<span class="muted">–</span>'}</span>
+          ${ctag ? `<span class="country-tag">${ctag}</span>` : ''}
           <button class="phone-edit" data-act="edit-phone" title="Ändra nummer">✎</button>
           ${p.calledAt ? `<span class="called-badge" title="Uppringd">📞 ${fmtTime(p.calledAt)}</span>` : ''}
         </td>
@@ -362,6 +366,65 @@
     }
   }
 
+  // ---- Landsdetektering från landskod -------------------------------------
+  // Karta landskod -> ISO-landskod. Längsta prefix vinner (1–4 siffror).
+  const DIAL_CODES = {
+    '1': 'US', '7': 'RU', '20': 'EG', '27': 'ZA', '30': 'GR', '31': 'NL',
+    '32': 'BE', '33': 'FR', '34': 'ES', '36': 'HU', '39': 'IT', '40': 'RO',
+    '41': 'CH', '43': 'AT', '44': 'GB', '45': 'DK', '46': 'SE', '47': 'NO',
+    '48': 'PL', '49': 'DE', '51': 'PE', '52': 'MX', '53': 'CU', '54': 'AR',
+    '55': 'BR', '56': 'CL', '57': 'CO', '58': 'VE', '60': 'MY', '61': 'AU',
+    '62': 'ID', '63': 'PH', '64': 'NZ', '65': 'SG', '66': 'TH', '81': 'JP',
+    '82': 'KR', '84': 'VN', '86': 'CN', '90': 'TR', '91': 'IN', '92': 'PK',
+    '212': 'MA', '213': 'DZ', '216': 'TN', '218': 'LY', '234': 'NG',
+    '254': 'KE', '297': 'AW', '298': 'FO', '299': 'GL', '350': 'GI',
+    '351': 'PT', '352': 'LU', '353': 'IE', '354': 'IS', '355': 'AL',
+    '356': 'MT', '357': 'CY', '358': 'FI', '359': 'BG', '370': 'LT',
+    '371': 'LV', '372': 'EE', '373': 'MD', '374': 'AM', '375': 'BY',
+    '376': 'AD', '377': 'MC', '378': 'SM', '380': 'UA', '381': 'RS',
+    '382': 'ME', '385': 'HR', '386': 'SI', '387': 'BA', '389': 'MK',
+    '420': 'CZ', '421': 'SK', '423': 'LI', '852': 'HK', '853': 'MO',
+    '880': 'BD', '886': 'TW', '960': 'MV', '961': 'LB', '962': 'JO',
+    '964': 'IQ', '965': 'KW', '966': 'SA', '967': 'YE', '968': 'OM',
+    '971': 'AE', '972': 'IL', '973': 'BH', '974': 'QA', '975': 'BT',
+    '976': 'MN', '977': 'NP', '992': 'TJ', '993': 'TM', '994': 'AZ',
+    '995': 'GE', '996': 'KG', '998': 'UZ',
+  };
+
+  function isoToFlag(iso) {
+    return iso.replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  }
+
+  function detectCountry(phone) {
+    const raw = String(phone || '').trim();
+    let rest;
+    if (raw.startsWith('+')) rest = raw.slice(1);
+    else if (raw.startsWith('00')) rest = raw.slice(2);
+    else return null;
+    const digits = rest.replace(/\D/g, '');
+    for (let len = 4; len >= 1; len--) {
+      const iso = DIAL_CODES[digits.slice(0, len)];
+      if (iso) return { iso, flag: isoToFlag(iso) };
+    }
+    return null;
+  }
+
+  // Flagga + ISO för listan/formuläret; 🌍 för okänd landskod; '' för inhemskt.
+  function countryInfo(phone) {
+    const c = detectCountry(phone);
+    if (c) return c.flag + ' ' + c.iso;
+    const raw = String(phone || '').trim();
+    return (raw.startsWith('+') || raw.startsWith('00')) ? '🌍' : '';
+  }
+
+  // Bara flaggan (för den kompakta kortvyn).
+  function countryFlag(phone) {
+    const c = detectCountry(phone);
+    if (c) return c.flag;
+    const raw = String(phone || '').trim();
+    return (raw.startsWith('+') || raw.startsWith('00')) ? '🌍' : '';
+  }
+
   // ---- Add-form ------------------------------------------------------------
 
   let pendingArrival = null; // sätts när man börjar skriva telefon
@@ -385,6 +448,12 @@
     warn.textContent = issue || '';
     warn.hidden = !issue;
     phone.classList.toggle('warn', !!issue);
+    const country = $('#phoneCountry');
+    if (country) {
+      const tag = countryInfo(phone.value);
+      country.textContent = tag;
+      country.hidden = !tag;
+    }
   }
 
   function resetForm() {
