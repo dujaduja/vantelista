@@ -782,6 +782,7 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (reloading) return;
         reloading = true;
+        flushAll(); // spara synkront precis innan omladdning, för säkerhets skull
         window.location.reload();
       });
       navigator.serviceWorker.register('sw.js')
