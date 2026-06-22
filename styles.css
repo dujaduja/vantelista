@@ -127,6 +127,7 @@ html, body {
 .field-narrow { min-width: 88px; max-width: 110px; }
 .field-arrival { min-width: 80px; }
 .field label { font-size: 12px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .4px; }
+.field label .req { color: var(--red); font-weight: 800; }
 .field input[type="text"], .field input[type="tel"], .field input[type="number"] {
   font-size: 17px;
   padding: 11px 12px;

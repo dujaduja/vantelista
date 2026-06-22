@@ -462,6 +462,7 @@
     });
     document.getElementById('f-shadow').checked = false;
     document.getElementById('f-bridge').checked = false;
+    document.getElementById('f-pax').classList.remove('warn');
     pendingArrival = null;
     pendingEst = null;
     document.querySelectorAll('#estChips .est-chip').forEach((c) => c.classList.remove('selected'));
@@ -483,6 +484,9 @@
       }
       updatePhoneWarning();
     });
+
+    // Ta bort PAX-varning så fort man börjar fylla i.
+    $('#f-pax').addEventListener('input', () => $('#f-pax').classList.remove('warn'));
 
     // Kvarts-knappar för estimerad väntetid (toggla val).
     $('#estChips').addEventListener('click', (e) => {
@@ -506,9 +510,13 @@
         bridge: $('#f-bridge').checked,
         arrival: pendingArrival || Date.now(),
       };
-      const hasAny = data.phone || data.name || data.pax || data.comment ||
-        data.est || data.shadow || data.bridge;
-      if (!hasAny) { toast('Fyll i minst ett fält'); return; }
+      if (!data.pax || Number(data.pax) < 1) {
+        toast('Ange antal personer (PAX)');
+        const pax = $('#f-pax');
+        pax.classList.add('warn');
+        pax.focus();
+        return;
+      }
       addParty(data);
       resetForm();
       $('#f-phone').focus();
