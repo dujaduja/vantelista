@@ -191,12 +191,16 @@
 
   function renderQueue() {
     const body = $('#queueBody');
-    const list = waiting();
+    const all = waiting();
+    const list = all.filter(paxMatches);
     const empty = $('#emptyState');
 
     if (list.length === 0) {
       body.innerHTML = '';
       empty.hidden = false;
+      empty.textContent = all.length > 0
+        ? 'Inga sällskap matchar PAX-filtret.'
+        : 'Inga sällskap i kö. Lägg till ovan.';
     } else {
       empty.hidden = true;
       body.innerHTML = list.map(rowHtml).join('');
@@ -204,6 +208,7 @@
     applyRowStates();
     updateElapsed();
     renderCounters();
+    updatePaxCounts();
   }
 
   /** Sätt gul/utgråad markering per rad utan att rendera om. */
@@ -472,7 +477,7 @@
       const value = el.type === 'checkbox' ? el.checked : el.value;
       updateField(id, field, value);
       if (field === 'table') { applyRowStates(); }
-      if (field === 'pax') { renderCounters(); }
+      if (field === 'pax') { renderCounters(); updatePaxCounts(); }
       if (field === 'est') { updateElapsed(); }
       if (field === 'shadow' || field === 'bridge') { /* enbart spara */ }
     });
@@ -747,6 +752,70 @@
     } catch (e) { /* kräver ibland en användargest – återförsök sker vid interaktion */ }
   }
 
+  // ---- Inställningar: tema + täthet (sparas mellan sessioner) -------------
+  const SETTINGS_KEY = 'vantelista-settings';
+  let settings = (() => {
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+    catch (e) { return {}; }
+  })();
+
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+  }
+
+  function applySettings() {
+    document.documentElement.classList.toggle('dark', settings.theme === 'dark');
+    document.documentElement.classList.toggle('compact', settings.density === 'compact');
+    const t = $('#btnTheme');
+    if (t) t.textContent = settings.theme === 'dark' ? '☀️' : '🌙';
+    const d = $('#btnDensity');
+    if (d) d.textContent = settings.density === 'compact' ? '≡ Normal' : '≣ Kompakt';
+  }
+
+  function toggleTheme() {
+    settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
+    saveSettings(); applySettings();
+  }
+  function toggleDensity() {
+    settings.density = settings.density === 'compact' ? 'comfortable' : 'compact';
+    saveSettings(); applySettings();
+  }
+
+  // ---- PAX-snabbfilter -----------------------------------------------------
+  let paxFilter = null; // null | '1-3' | '4-5' | '6' | '6+' (6+ = 7 eller fler)
+
+  function paxMatches(p) {
+    if (!paxFilter) return true;
+    const n = Number(p.pax) || 0;
+    if (paxFilter === '1-3') return n >= 1 && n <= 3;
+    if (paxFilter === '4-5') return n >= 4 && n <= 5;
+    if (paxFilter === '6') return n === 6;
+    if (paxFilter === '6+') return n >= 7;
+    return true;
+  }
+
+  function setPaxFilter(val) {
+    paxFilter = val === 'all' ? null : val;
+    document.querySelectorAll('#paxChips .pax-chip').forEach((c) =>
+      c.classList.toggle('selected', c.dataset.pax === (paxFilter || 'all')));
+    renderQueue();
+  }
+
+  function updatePaxCounts() {
+    const counts = { '1-3': 0, '4-5': 0, '6': 0, '6+': 0 };
+    waiting().forEach((p) => {
+      const n = Number(p.pax) || 0;
+      if (n >= 1 && n <= 3) counts['1-3']++;
+      else if (n >= 4 && n <= 5) counts['4-5']++;
+      else if (n === 6) counts['6']++;
+      else if (n >= 7) counts['6+']++;
+    });
+    Object.keys(counts).forEach((k) => {
+      const el = document.querySelector(`[data-pax-count="${k}"]`);
+      if (el) el.textContent = counts[k];
+    });
+  }
+
   function openModal(id) { document.getElementById(id).hidden = false; }
   function closeModal(el) { el.hidden = true; }
 
@@ -779,6 +848,13 @@
     initQueueEvents();
     initModals();
 
+    applySettings();
+    $('#btnTheme').addEventListener('click', toggleTheme);
+    $('#btnDensity').addEventListener('click', toggleDensity);
+    $('#paxChips').addEventListener('click', (e) => {
+      const c = e.target.closest('.pax-chip');
+      if (c) setPaxFilter(c.dataset.pax);
+    });
     $('#btnSave').addEventListener('click', saveAll);
     $('#btnExportJson').addEventListener('click', exportJson);
     $('#btnExportCsv').addEventListener('click', exportCsv);

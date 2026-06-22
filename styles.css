@@ -13,6 +13,29 @@
   --green: #2f9e44;
   --shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .06);
   --radius: 12px;
+  --topbar-bg: #1f2933;
+  --toast-bg: #1f2933;
+  --input-bg: #ffffff;
+  --hover-bg: #f7f8fa;
+  --thead-bg: #fafbfc;
+  --accent-soft: #eef4ff;
+}
+
+/* Mörkt läge: skriver om temavariablerna. */
+html.dark {
+  --bg: #0f141a;
+  --surface: #1b222b;
+  --ink: #e6eaef;
+  --ink-soft: #9aa6b2;
+  --muted: #6b7682;
+  --line: #2a323c;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .45);
+  --topbar-bg: #11161c;
+  --toast-bg: #2a323c;
+  --input-bg: #232c36;
+  --hover-bg: #232c36;
+  --thead-bg: #161c23;
+  --accent-soft: #1f2a3a;
 }
 
 * { box-sizing: border-box; }
@@ -37,7 +60,7 @@ html, body {
   padding-top: max(env(safe-area-inset-top), 10px);
   height: auto;
   min-height: 64px;
-  background: var(--ink);
+  background: var(--topbar-bg);
   color: #fff;
   position: sticky;
   top: 0;
@@ -103,7 +126,8 @@ html, body {
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--input-bg);
+  color: var(--ink);
   width: 100%;
   min-height: 46px;
 }
@@ -120,7 +144,7 @@ html, body {
 .field-est { min-width: auto; }
 .est-chips { display: flex; gap: 6px; }
 .est-chip {
-  border: 1px solid var(--line); background: #fff; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--input-bg); border-radius: 10px;
   padding: 0 14px; min-height: 46px; font-size: 16px; font-weight: 700;
   color: var(--ink-soft); cursor: pointer;
 }
@@ -137,7 +161,7 @@ html, body {
   color: var(--ink-soft);
   padding: 12px 10px;
   border-bottom: 2px solid var(--line);
-  background: #fafbfc;
+  background: var(--thead-bg);
   position: sticky;
   top: var(--topbar-h, 72px);
   z-index: 5;
@@ -166,8 +190,8 @@ html, body {
   background: transparent;
   min-height: 42px;
 }
-.cell:hover { background: #f7f8fa; }
-.cell:focus { outline: none; border-color: var(--primary); background: #fff; }
+.cell:hover { background: var(--hover-bg); }
+.cell:focus { outline: none; border-color: var(--primary); background: var(--input-bg); }
 .cell.num { text-align: center; }
 
 .phone {
@@ -181,8 +205,8 @@ html, body {
   color: var(--primary);
   min-height: 42px;
 }
-.phone:hover { background: #eef4ff; }
-.phone:active { background: #dbe7ff; }
+.phone:hover { background: var(--accent-soft); }
+.phone:active { background: var(--accent-soft); }
 .muted { color: var(--muted); }
 
 .col-phone { white-space: nowrap; }
@@ -191,7 +215,7 @@ html, body {
   font-size: 15px; cursor: pointer; padding: 8px; min-height: 42px; min-width: 36px;
   border-radius: 8px; vertical-align: middle;
 }
-.phone-edit:hover { color: var(--primary); background: #eef4ff; }
+.phone-edit:hover { color: var(--primary); background: var(--accent-soft); }
 .phone-input { width: 150px; font-variant-numeric: tabular-nums; }
 
 .queue .chk { font-size: 14px; }
@@ -216,7 +240,7 @@ html, body {
 .row.assigned { background: var(--yellow); }
 .row.assigned .dot { background: var(--yellow-line); }
 .row.assigned .cell:hover { background: rgba(255,255,255,.5); }
-.row.is-done { opacity: .5; background: #f5f6f8; }
+.row.is-done { opacity: .5; background: var(--thead-bg); }
 .row.is-done .dot { background: var(--green); }
 .row.is-done .col-actions { visibility: hidden; }
 .row.is-done .cell, .row.is-done .phone { pointer-events: none; }
@@ -265,7 +289,7 @@ html, body {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
   left: 50%; transform: translateX(-50%);
-  background: var(--ink); color: #fff;
+  background: var(--toast-bg); color: #fff;
   padding: 14px 22px; border-radius: 12px;
   font-size: 16px; font-weight: 600;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -328,7 +352,7 @@ html, body {
 
   .queue tbody td .cell {
     flex: 1 1 auto; width: auto;
-    background: #f4f6f8; text-align: left;
+    background: var(--hover-bg); text-align: left;
   }
   .queue tbody td.col-pax .cell,
   .queue tbody td.col-table .cell,
@@ -341,3 +365,45 @@ html, body {
   .col-actions { padding-top: 10px; gap: 8px; }
   .col-actions .btn { flex: 1 1 auto; width: auto; height: 50px; font-size: 20px; margin: 0; }
 }
+
+/* ---- Verktygsrad: PAX-filter ---- */
+.toolbar { display: flex; align-items: center; gap: 12px; margin: 0 16px 12px; flex-wrap: wrap; }
+.toolbar-label { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .4px; }
+.pax-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.pax-chip {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 999px; padding: 8px 16px; min-height: 44px;
+  font-size: 15px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.pax-chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+.pc-count {
+  font-size: 13px; font-weight: 800; min-width: 22px; text-align: center;
+  background: rgba(0,0,0,.1); border-radius: 999px; padding: 1px 7px;
+}
+.pax-chip.selected .pc-count { background: rgba(255,255,255,.25); }
+
+/* ---- Kompakt täthet (fler rader på skärmen) ---- */
+.compact .queue tbody td { padding: 2px 10px; }
+.compact .cell { min-height: 34px; padding: 5px 9px; font-size: 15px; }
+.compact .phone { min-height: 34px; padding: 5px 10px; font-size: 15px; }
+.compact .col-actions .btn { width: 38px; height: 38px; font-size: 16px; }
+.compact .queue thead th { padding: 6px 10px; }
+.compact .queue .chk { font-size: 13px; }
+.compact .called-badge { font-size: 11px; }
+@media (max-width: 700px) {
+  .compact .queue tbody tr { padding: 2px 14px; }
+  .compact .card-summary { padding: 6px 0; }
+  .compact .cs-name { font-size: 16px; }
+}
+
+/* ---- Mörkt läge: punktjusteringar utöver variablerna ---- */
+html.dark .btn { background: var(--surface); color: var(--ink); }
+html.dark .btn-left, html.dark .btn-danger { background: #3a1f24; border-color: #5b2a30; color: #ff8b8b; }
+html.dark .btn-call.is-called { background: #16321f; border-color: #2c5a39; }
+html.dark .field input.warn { background: #3a1f24; }
+html.dark .cs-bord { background: var(--surface); }
+/* Gul "tilldelat bord"-rad behåller mörk text även i mörkt läge */
+html.dark .row.assigned, html.dark .row.assigned td,
+html.dark .row.assigned .cell, html.dark .row.assigned input,
+html.dark .row.assigned .cs-name, html.dark .row.assigned .cs-pax { color: #1f2933; }
+html.dark .row.will-complete td, html.dark .row.will-complete .cell { color: #fff; }
