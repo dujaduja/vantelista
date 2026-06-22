@@ -603,13 +603,16 @@
 
   // ---- Summering ----------------------------------------------------------
 
-  function maxConcurrent(list) {
-    // Maximalt antal samtidigt väntande (överlapp av [ankomst, slut]).
+  function maxConcurrent(list, weightFn) {
+    // Maximal samtidig kö (överlapp av [ankomst, slut]). weightFn anger hur
+    // mycket varje sällskap väger – 1 för antal sällskap, pax för personer.
+    const weight = weightFn || (() => 1);
     const events = [];
     list.forEach((p) => {
       const end = p.statusTime || Date.now();
-      events.push([p.arrival, 1]);
-      events.push([end, -1]);
+      const val = weight(p);
+      events.push([p.arrival, val]);
+      events.push([end, -val]);
     });
     events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     let cur = 0, max = 0;
@@ -636,6 +639,7 @@
       avgPax,
       avgWaitMs: avgWait,
       maxConcurrent: maxConcurrent(list),
+      maxConcurrentPax: maxConcurrent(list, (p) => Number(p.pax) || 0),
       shadow: list.filter((p) => p.shadow).length,
       bridge: list.filter((p) => p.bridge).length,
       left: left.length,
@@ -651,7 +655,8 @@
       ['Totalt antal personer', s.totalPax],
       ['Snittstorlek på sällskap', s.avgPax ? s.avgPax.toFixed(1) : '–'],
       ['Genomsnittlig väntetid (avklarade)', s.avgWaitMs ? fmtDuration(s.avgWaitMs) : '–'],
-      ['Högsta samtidiga kö', s.maxConcurrent],
+      ['Längsta kö (sällskap)', s.maxConcurrent],
+      ['Flest antal personer i kö samtidigt', s.maxConcurrentPax],
       ['Skugga', s.shadow],
       ['Brygga', s.bridge],
       ['Gick utan bord', s.left],
