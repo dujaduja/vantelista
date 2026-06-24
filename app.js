@@ -591,7 +591,7 @@
     if (!p) return;
     const td = tr.querySelector('.col-phone');
     if (!td) return;
-    td.innerHTML = `<input class="cell phone-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="${escapeAttr(p.phone)}" />`;
+    td.innerHTML = `<input class="cell phone-input" type="tel" inputmode="tel" value="${escapeAttr(p.phone)}" />`;
     const input = td.querySelector('input');
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
