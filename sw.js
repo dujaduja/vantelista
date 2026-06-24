@@ -1,6 +1,6 @@
 /* Service worker – cachar app-skalet så appen fungerar offline.
    Bumpa CACHE-versionen när filer ändras för att tvinga uppdatering. */
-const CACHE = 'vantelista-v25';
+const CACHE = 'vantelista-v26';
 const ASSETS = [
   './',
   './index.html',
